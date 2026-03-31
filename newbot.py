@@ -60,8 +60,43 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/cd <папка> — перейти в папку\n"
         "/back — на уровень выше\n"
         "/get <файл> — скачать файл\n"
+        "/rename <старое> <новое> — переименовать\n"
         "/stop — остановить бота"
     )
+
+@require_access
+async def rename(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+
+    if len(context.args) < 2:
+        await update.message.reply_text("Использование:\n/rename старое_имя новое_имя")
+        return
+
+    old_name = context.args[0]
+    new_name = " ".join(context.args[1:])  # чтобы поддерживались имена с пробелами
+
+    current = USER_DIR.get(chat_id, ROOT_FOLDER)
+
+    old_path = os.path.join(current, old_name)
+    new_path = os.path.join(current, new_name)
+
+    # Безопасность
+    old_safe = safe_path(ROOT_FOLDER, old_path)
+    new_safe = safe_path(ROOT_FOLDER, new_path)
+
+    if old_safe is None or not os.path.exists(old_safe):
+        await update.message.reply_text("Файл или папка не найдены.")
+        return
+
+    if new_safe is None:
+        await update.message.reply_text("Недопустимое имя (выход за пределы корня).")
+        return
+
+    try:
+        os.rename(old_safe, new_safe)
+        await update.message.reply_text(f"Переименовано:\n{old_name} → {new_name}")
+    except Exception as e:
+        await update.message.reply_text(f"Ошибка: {e}")
 
 @require_access
 async def pwd(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -186,6 +221,7 @@ if __name__ == "__main__":
     app.add_handler(CommandHandler("cd", cd))
     app.add_handler(CommandHandler("back", back))
     app.add_handler(CommandHandler("get", get_file))
+    app.add_handler(CommandHandler("rename", rename))
     app.add_handler(CommandHandler("stop", stop))
 
     # Пароль
