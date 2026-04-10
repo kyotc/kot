@@ -2,4 +2,10 @@
 
 !.gitignore
 !newbot.py
+!bot_config.py
+!bot_state.py
+!fs_service.py
+!access_service.py
+!command_handlers.py
+!message_handlers.py
 
