@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Interactive map — demo</title>
+    <link rel="stylesheet" href="map_app.css" />
+  </head>
+  <body>
+    <div class="app">
+      <div class="map-column">
+        <div class="map-stage">
+          <!-- Замените src при смене файла карты -->
+          <img
+            src="fantasy_world_parchment_map_v4.png"
+            alt="Fantasy parchment map"
+            width="1200"
+            height="675"
+          />
+          <svg
+            id="hit-layer"
+            viewBox="0 0 1200 675"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <!-- Полигоны добавляются из map_app.js -->
+          </svg>
+        </div>
+      </div>
+
+      <aside class="side-panel">
+        <div class="panel-inner">
+          <h2 id="panel-title">Region</h2>
+          <p id="panel-hint" class="hint">
+            Click a realm on the map. The patchwork of small realms on the left is one
+            combined hit area.
+          </p>
+          <div id="panel-body" class="body"></div>
+          <div class="corner-ornament">— demo text —</div>
+        </div>
+      </aside>
+    </div>
+    <script src="map_app.js"></script>
+  </body>
+</html>
+<!--start "c:\Users\vlalq\Documents\Програмирование\kot\interactive_map\index.html" -->

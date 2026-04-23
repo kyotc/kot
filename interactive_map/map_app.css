@@ -1,0 +1,228 @@
+:root {
+  --ink: #2a2118;
+  --parchment: #e8dcc4;
+  --parchment-dark: #c9b89a;
+  --accent: #6b4a2e;
+  --hover: rgba(107, 74, 46, 0.18);
+  --panel-border: #8b7355;
+  --shadow: 0 8px 32px rgba(42, 33, 24, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Georgia", "Times New Roman", serif;
+  color: var(--ink);
+  background: linear-gradient(145deg, #3d3429 0%, #1f1a15 100%);
+}
+
+.app {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 1.25rem;
+  align-items: flex-start;
+}
+
+.map-column {
+  flex: 1 1 480px;
+  min-width: 280px;
+}
+
+.map-stage {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+  line-height: 0;
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.map-stage img {
+  display: block;
+  width: 100%;
+  height: auto;
+  user-select: none;
+  pointer-events: none;
+}
+
+.map-stage svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.region {
+  fill: transparent;
+  stroke: transparent;
+  cursor: pointer;
+  transition: fill 0.15s ease;
+}
+
+.region:hover,
+.region:focus {
+  fill: var(--hover);
+  outline: none;
+}
+
+.region.is-active {
+  fill: rgba(107, 74, 46, 0.28);
+}
+
+/* Editor mode */
+body.editor-on .region {
+  stroke: rgba(200, 40, 40, 0.8);
+  stroke-width: 1.5;
+  fill: rgba(200, 40, 40, 0.12);
+}
+
+body.editor-on .region.is-editing {
+  stroke: #ff2a2a;
+  stroke-width: 2.5;
+  fill: rgba(255, 60, 60, 0.2);
+}
+
+#editor-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 50;
+  background: #1d1a15;
+  color: #e8dcc4;
+  border: 1px solid #8b7355;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 12px;
+  max-width: 360px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  display: none;
+}
+
+#editor-panel.is-open {
+  display: block;
+}
+
+#editor-panel .ed-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(139, 115, 85, 0.4);
+}
+
+#editor-panel .ed-hint {
+  opacity: 0.7;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+#editor-panel .ed-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#editor-panel .ed-row {
+  display: flex;
+  gap: 6px;
+}
+
+#editor-panel label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+#editor-panel input,
+#editor-panel select {
+  width: 100%;
+  background: #2a2118;
+  color: #e8dcc4;
+  border: 1px solid #6b4a2e;
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+#editor-panel pre {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  background: #0f0d0a;
+  border: 1px solid #3d3429;
+  border-radius: 3px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 11px;
+  color: #c9b89a;
+}
+
+.side-panel {
+  flex: 0 1 340px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.panel-inner {
+  background: var(--parchment);
+  background-image: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(74, 60, 42, 0.04) 2px,
+      rgba(74, 60, 42, 0.04) 3px
+    ),
+    radial-gradient(ellipse at 30% 20%, rgba(255, 248, 220, 0.5), transparent 55%);
+  border: 3px double var(--panel-border);
+  border-radius: 6px;
+  padding: 1.25rem 1.35rem;
+  box-shadow: var(--shadow), inset 0 0 80px rgba(139, 115, 85, 0.15);
+  min-height: 200px;
+}
+
+.panel-inner h2 {
+  margin: 0 0 0.65rem;
+  font-size: 1.35rem;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  border-bottom: 1px solid rgba(139, 115, 85, 0.5);
+  padding-bottom: 0.5rem;
+}
+
+.panel-inner .hint {
+  margin: 0;
+  font-size: 0.95rem;
+  font-style: italic;
+  color: #5c4d3a;
+}
+
+.panel-inner .body {
+  margin-top: 1rem;
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.corner-ornament {
+  font-size: 0.75rem;
+  text-align: right;
+  margin-top: 1rem;
+  opacity: 0.55;
+}
+
+@media (max-width: 900px) {
+  .side-panel {
+    max-width: none;
+  }
+}
