@@ -1,11 +1,11 @@
 *
 
 !.gitignore
-!newbot.py
-!bot_config.py
-!bot_state.py
-!fs_service.py
-!access_service.py
-!command_handlers.py
-!message_handlers.py
+!my_bot/newbot.py
+!my_bot/bot_config.py
+!my_bot/bot_state.py
+!my_bot/fs_service.py
+!my_bot/access_service.py
+!my_bot/command_handlers.py
+!my_bot/message_handlers.py
 
