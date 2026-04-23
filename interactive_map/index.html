@@ -3,44 +3,156 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Interactive map — demo</title>
+    <title>The Shattered Ivory — Interactive Map</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Cinzel+Decorative:wght@400;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="map_app.css" />
   </head>
-  <body>
-    <div class="app">
-      <div class="map-column">
-        <div class="map-stage">
-          <!-- Замените src при смене файла карты -->
-          <img
-            src="fantasy_world_parchment_map_v4.png"
-            alt="Fantasy parchment map"
-            width="1200"
-            height="675"
-          />
-          <svg
-            id="hit-layer"
-            viewBox="0 0 1200 675"
-            preserveAspectRatio="none"
-            aria-hidden="true"
-          >
-            <!-- Полигоны добавляются из map_app.js -->
-          </svg>
+  <body class="is-intro">
+    <!-- Ambient background layers -->
+    <div class="bg-layer bg-vignette" aria-hidden="true"></div>
+    <div class="bg-layer bg-noise" aria-hidden="true"></div>
+    <div class="bg-layer bg-embers" aria-hidden="true">
+      <span class="ember"></span><span class="ember"></span
+      ><span class="ember"></span><span class="ember"></span
+      ><span class="ember"></span><span class="ember"></span
+      ><span class="ember"></span><span class="ember"></span
+      ><span class="ember"></span><span class="ember"></span>
+    </div>
+
+    <!-- Intro sequence -->
+    <div id="intro" class="intro" role="dialog" aria-label="Opening credits">
+      <div class="intro-stage">
+        <div class="intro-step" data-step="made-by">
+          <span class="intro-eyebrow">Made by</span>
+        </div>
+        <div class="intro-step" data-step="author">
+          <span class="intro-author">Vladislav Yakunin</span>
+        </div>
+        <div class="intro-step" data-step="book">
+          <h1 class="book-title">
+            <span class="book-title-word">The</span>
+            <span class="book-title-word">Shattered</span>
+            <span class="book-title-word">Ivory</span>
+          </h1>
+          <div class="ornament-divider">
+            <span class="divider-line"></span>
+            <span class="divider-glyph">✦</span>
+            <span class="divider-line"></span>
+          </div>
+        </div>
+        <div class="intro-step" data-step="subtitle">
+          <span class="intro-subtitle">Interactive Map</span>
         </div>
       </div>
 
-      <aside class="side-panel">
-        <div class="panel-inner">
-          <h2 id="panel-title">Region</h2>
-          <p id="panel-hint" class="hint">
-            Click a realm on the map. The patchwork of small realms on the left is one
-            combined hit area.
-          </p>
-          <div id="panel-body" class="body"></div>
-          <div class="corner-ornament">— demo text —</div>
-        </div>
-      </aside>
+      <div class="intro-enter-hint" id="intro-enter">
+        <span>Click anywhere to enter</span>
+      </div>
+      <button class="intro-skip" id="intro-skip" type="button">Skip ▸</button>
     </div>
+
+    <!-- Main atlas -->
+    <main id="atlas" class="atlas" aria-hidden="true">
+      <div class="atlas-frame">
+        <header class="atlas-header">
+          <p class="atlas-eyebrow">— The Shattered Ivory —</p>
+          <h2 class="atlas-title">An Interactive Atlas</h2>
+          <div class="ornament-divider atlas-header-divider">
+            <span class="divider-line"></span>
+            <span class="divider-glyph">✦</span>
+            <span class="divider-line"></span>
+          </div>
+          <p class="atlas-lede">
+            <em>Folio the First.</em> Click upon any realm to uncover its cartography.
+          </p>
+        </header>
+
+        <section class="app">
+          <div class="map-column">
+            <div class="map-stage">
+              <img
+                src="fantasy_world_parchment_map_v4.png"
+                alt="Fantasy parchment map"
+                width="1200"
+                height="675"
+              />
+              <svg
+                id="hit-layer"
+                viewBox="0 0 1200 675"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <!-- Region polygons injected from map_app.js -->
+              </svg>
+              <div class="map-corners" aria-hidden="true">
+                <span></span><span></span><span></span><span></span>
+              </div>
+            </div>
+            <p class="map-caption">
+              <span class="caption-glyph">✦</span>
+              Hover to reveal, click to journey
+              <span class="caption-glyph">✦</span>
+            </p>
+          </div>
+
+          <aside class="side-panel">
+            <div class="panel-inner">
+              <p class="panel-eyebrow">A Realm</p>
+              <h2 id="panel-title">Awaits</h2>
+              <div class="panel-divider">
+                <span class="divider-line"></span>
+                <span class="divider-glyph">❦</span>
+                <span class="divider-line"></span>
+              </div>
+              <p id="panel-hint" class="hint">
+                Select any land upon the map to read of its state, its crown, and its
+                perils. The mosaic of little realms upon the western flank is counted
+                as one.
+              </p>
+              <div id="panel-body" class="body"></div>
+              <div class="corner-ornament">— from the folio —</div>
+            </div>
+          </aside>
+        </section>
+
+        <footer class="atlas-footer">
+          <span class="footer-glyph">❦</span>
+          <span>Folio&nbsp;I · The Shattered Ivory · An Atlas in Progress</span>
+          <span class="footer-glyph">❦</span>
+        </footer>
+      </div>
+    </main>
+
+    <!-- Fullscreen region overlay -->
+    <div id="region-overlay" class="region-overlay" aria-hidden="true">
+      <div class="overlay-vignette"></div>
+      <button
+        class="overlay-close"
+        id="overlay-close"
+        type="button"
+        aria-label="Close"
+      >
+        <span aria-hidden="true">×</span>
+      </button>
+      <div class="overlay-inner">
+        <p class="overlay-eyebrow" id="overlay-eyebrow">The Realm of</p>
+        <h1 class="overlay-title" id="overlay-title">—</h1>
+        <div class="ornament-divider overlay-divider">
+          <span class="divider-line"></span>
+          <span class="divider-glyph">✦</span>
+          <span class="divider-line"></span>
+        </div>
+        <p class="overlay-placeholder">
+          The detailed atlas of this realm is yet to be inscribed.
+        </p>
+      </div>
+    </div>
+
     <script src="map_app.js"></script>
   </body>
 </html>
-<!--start "c:\Users\vlalq\Documents\Програмирование\kot\interactive_map\index.html" -->

@@ -334,6 +334,135 @@ function initEditor(svg, regions) {
   refreshUI();
 }
 
+/* ---------- English titles for overlay ---------- */
+
+const REGION_TITLES_EN = {
+  fpedvesga: "Lidenvar",
+  sevas: "Sevas",
+  nales: "Nales",
+  tef: "Kingdom of Tef",
+  west_states: "The Western Realms",
+};
+
+/* ---------- Intro sequence ---------- */
+
+const INTRO_STEPS = [
+  { id: "made-by",  enterAt: 400,   leaveAt: 2200 },
+  { id: "author",   enterAt: 3400,  leaveAt: 5800 },
+  { id: "book",     enterAt: 7000,  leaveAt: 10800 },
+  { id: "subtitle", enterAt: 12000, leaveAt: 14800 },
+];
+
+const INTRO_HINT_AT = 13500;
+const INTRO_AUTO_END = 16500;
+
+function runIntro() {
+  const intro = document.getElementById("intro");
+  const skipBtn = document.getElementById("intro-skip");
+  const enterHint = document.getElementById("intro-enter");
+  const atlas = document.getElementById("atlas");
+  if (!intro || !atlas) return;
+
+  const steps = new Map();
+  INTRO_STEPS.forEach((cfg) => {
+    const el = intro.querySelector(`[data-step="${cfg.id}"]`);
+    if (el) steps.set(cfg.id, el);
+  });
+
+  const timers = [];
+  let finished = false;
+
+  INTRO_STEPS.forEach((cfg) => {
+    const el = steps.get(cfg.id);
+    if (!el) return;
+    timers.push(
+      window.setTimeout(() => el.classList.add("is-visible"), cfg.enterAt)
+    );
+    timers.push(
+      window.setTimeout(() => el.classList.add("is-leaving"), cfg.leaveAt)
+    );
+  });
+
+  timers.push(
+    window.setTimeout(() => enterHint?.classList.add("is-visible"), INTRO_HINT_AT)
+  );
+
+  function finishIntro() {
+    if (finished) return;
+    finished = true;
+    timers.forEach((t) => clearTimeout(t));
+    intro.classList.add("is-hidden");
+    atlas.classList.add("is-visible");
+    atlas.setAttribute("aria-hidden", "false");
+    intro.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("is-intro");
+    window.setTimeout(() => intro.remove(), 1200);
+  }
+
+  const autoTimer = window.setTimeout(finishIntro, INTRO_AUTO_END);
+  timers.push(autoTimer);
+
+  intro.addEventListener("click", (e) => {
+    if (e.target === skipBtn) return;
+    finishIntro();
+  });
+  skipBtn?.addEventListener("click", finishIntro);
+  window.addEventListener("keydown", function keyHandler(e) {
+    if (finished) {
+      window.removeEventListener("keydown", keyHandler);
+      return;
+    }
+    if (
+      e.key === "Enter" ||
+      e.key === " " ||
+      e.key === "Escape" ||
+      e.key.length === 1
+    ) {
+      finishIntro();
+    }
+  });
+}
+
+/* ---------- Region fullscreen overlay ---------- */
+
+function initOverlay() {
+  const overlay = document.getElementById("region-overlay");
+  const titleEl = document.getElementById("overlay-title");
+  const eyebrowEl = document.getElementById("overlay-eyebrow");
+  const closeBtn = document.getElementById("overlay-close");
+  if (!overlay) return { open: () => {}, close: () => {} };
+
+  function open(regionId) {
+    const meta = REGIONS.find((r) => r.id === regionId);
+    if (!meta) return;
+    const englishTitle = REGION_TITLES_EN[regionId] || meta.title;
+    if (titleEl) titleEl.textContent = englishTitle;
+    if (eyebrowEl) {
+      eyebrowEl.textContent =
+        regionId === "west_states" ? "The Lands of" : "The Realm of";
+    }
+    overlay.classList.add("is-open");
+    overlay.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+  }
+
+  function close() {
+    overlay.classList.remove("is-open");
+    overlay.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  closeBtn?.addEventListener("click", close);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay) close();
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && overlay.classList.contains("is-open")) close();
+  });
+
+  return { open, close };
+}
+
 /* ---------- App setup ---------- */
 
 function setup() {
@@ -344,18 +473,20 @@ function setup() {
 
   renderRegions(svg);
   const regions = svg.querySelectorAll(".region");
+  const overlay = initOverlay();
 
   function selectRegion(poly) {
     regions.forEach((p) => p.classList.remove("is-active"));
     if (poly) poly.classList.add("is-active");
   }
 
-  function showRegion(regionId) {
+  function updateSidePanel(regionId) {
     const meta = REGIONS.find((x) => x.id === regionId);
     if (!meta) return;
-    titleEl.textContent = meta.title;
-    bodyEl.textContent = randomBody();
-    hintEl.textContent = "";
+    const englishTitle = REGION_TITLES_EN[regionId] || meta.title;
+    if (titleEl) titleEl.textContent = englishTitle;
+    if (bodyEl) bodyEl.textContent = randomBody();
+    if (hintEl) hintEl.textContent = "";
   }
 
   regions.forEach((poly) => {
@@ -364,8 +495,10 @@ function setup() {
         e.preventDefault();
         return;
       }
+      const id = poly.getAttribute("data-id");
       selectRegion(poly);
-      showRegion(poly.getAttribute("data-id"));
+      updateSidePanel(id);
+      overlay.open(id);
     });
     poly.addEventListener("keydown", (e) => {
       if (document.body.classList.contains("editor-on")) return;
@@ -377,6 +510,7 @@ function setup() {
   });
 
   initEditor(svg, regions);
+  runIntro();
 }
 
 document.addEventListener("DOMContentLoaded", setup);
