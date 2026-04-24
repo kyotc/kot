@@ -180,6 +180,79 @@ body.is-intro {
   transform: translateY(-12px);
 }
 
+.intro-step[data-step="subtitle"] {
+  transform: translateY(112px);
+}
+
+.intro-step[data-step="subtitle"].is-visible {
+  transform: translateY(145px);
+}
+
+.intro-step[data-step="subtitle"].is-leaving {
+  transform: translateY(90px);
+}
+
+/* ---------- Opening scene: Powered by + Vladislav Yakunin glide toward each other ---------- */
+
+.intro-step[data-step="made-by"],
+.intro-step[data-step="author"] {
+  transform: translate(-55vw, -28px);
+  opacity: 0;
+}
+
+.intro-step[data-step="author"] {
+  transform: translate(55vw, 28px);
+}
+
+.intro-step[data-step="made-by"].is-visible {
+  animation:
+    opening-sweep-left 8s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+    opening-veil 8s ease forwards;
+}
+
+.intro-step[data-step="author"].is-visible {
+  animation:
+    opening-sweep-right 8s cubic-bezier(0.16, 1, 0.3, 1) forwards,
+    opening-veil 8s ease forwards;
+}
+
+@keyframes opening-sweep-left {
+  from {
+    transform: translate(-55vw, -28px);
+  }
+  to {
+    transform: translate(-3vw, -28px);
+  }
+}
+
+@keyframes opening-sweep-right {
+  from {
+    transform: translate(55vw, 28px);
+  }
+  to {
+    transform: translate(3vw, 28px);
+  }
+}
+
+@keyframes opening-veil {
+  0% {
+    opacity: 0;
+    filter: blur(16px);
+  }
+  12% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  82% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(12px);
+  }
+}
+
 .intro-eyebrow {
   font-family: var(--font-display);
   font-size: clamp(0.95rem, 1.6vw, 1.25rem);
@@ -226,11 +299,15 @@ body.is-intro {
 .intro-subtitle {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: clamp(1rem, 2vw, 1.5rem);
-  letter-spacing: 0.35em;
-  text-transform: uppercase;
+  font-size: clamp(0.9rem, 1.7vw, 1.2rem);
+  letter-spacing: 0.2em;
+  text-transform: none;
   color: var(--accent-warm);
-  padding-left: 0.35em;
+  display: inline-block;
+  margin-top: 0;
+  padding-left: 0;
+  transform: none;
+  opacity: 0.92;
 }
 
 .ornament-divider {

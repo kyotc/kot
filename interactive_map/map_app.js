@@ -334,6 +334,653 @@ function initEditor(svg, regions) {
   refreshUI();
 }
 
+/* ---------- Audio FX (procedural, Web Audio API) ---------- */
+
+const AudioFX = (() => {
+  let ctx = null;
+  let master = null;
+  const audioEls = {};
+
+  const SAMPLE_URLS = {
+    decaying: "decaying-sonic-boom.mp3",
+    stress: "stress-transition-sound.mp3",
+    swing: "slow-swing.mp3",
+  };
+
+  const SAMPLE_DOM_IDS = {
+    decaying: "snd-decaying",
+    stress: "snd-stress",
+    swing: "snd-swing",
+  };
+
+  function ensure() {
+    if (!ctx) {
+      try {
+        const Ctor = window.AudioContext || window.webkitAudioContext;
+        if (!Ctor) return null;
+        ctx = new Ctor();
+        master = ctx.createGain();
+        master.gain.value = 0.7;
+        master.connect(ctx.destination);
+      } catch (_) {
+        return null;
+      }
+    }
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+    return ctx;
+  }
+
+  function getAudioEl(name) {
+    if (audioEls[name]) return audioEls[name];
+    const domId = SAMPLE_DOM_IDS[name];
+    let el = domId ? document.getElementById(domId) : null;
+    if (!el) {
+      const url = SAMPLE_URLS[name];
+      if (!url) return null;
+      try {
+        el = new Audio(url);
+        el.preload = "auto";
+      } catch (_) {
+        return null;
+      }
+    }
+    audioEls[name] = el;
+    return el;
+  }
+
+  function preloadAudio() {
+    Object.keys(SAMPLE_URLS).forEach((name) => {
+      const el = getAudioEl(name);
+      if (el && typeof el.load === "function") {
+        try { el.load(); } catch (_) {}
+      }
+    });
+  }
+
+  function primeAudio() {
+    Object.keys(SAMPLE_URLS).forEach((name) => {
+      const el = getAudioEl(name);
+      if (!el) return;
+      try {
+        el.muted = true;
+        const p = el.play();
+        const reset = () => {
+          try {
+            el.pause();
+            el.currentTime = 0;
+            el.muted = false;
+          } catch (_) {}
+        };
+        if (p && typeof p.then === "function") {
+          p.then(reset).catch(() => {
+            el.muted = false;
+          });
+        } else {
+          reset();
+        }
+      } catch (_) {}
+    });
+  }
+
+  function animateVolume(el, from, to, durSec, onDone) {
+    const start = performance.now();
+    const total = Math.max(1, durSec * 1000);
+    el.volume = Math.max(0, Math.min(1, from));
+    const tick = () => {
+      if (!el) return;
+      const k = Math.min(1, (performance.now() - start) / total);
+      el.volume = Math.max(0, Math.min(1, from + (to - from) * k));
+      if (k < 1) requestAnimationFrame(tick);
+      else if (onDone) onDone();
+    };
+    requestAnimationFrame(tick);
+  }
+
+  function playAudioEl(name, opts = {}) {
+    const el = getAudioEl(name);
+    if (!el) return;
+    const { volume = 0.65, fadeIn = 0.1, fadeOut = 0.6 } = opts;
+    try {
+      el.pause();
+      el.currentTime = 0;
+    } catch (_) {}
+    el.muted = false;
+    el.volume = 0;
+    const p = el.play();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+
+    animateVolume(el, 0, volume, fadeIn);
+
+    const scheduleFadeOut = () => {
+      const dur = isFinite(el.duration) && el.duration > 0 ? el.duration : 2;
+      const fadeOutStart = Math.max(fadeIn + 0.05, dur - fadeOut);
+      window.setTimeout(() => {
+        const startVol = el.volume;
+        animateVolume(el, startVol, 0, fadeOut, () => {
+          try {
+            el.pause();
+            el.currentTime = 0;
+          } catch (_) {}
+        });
+      }, fadeOutStart * 1000);
+    };
+
+    if (isFinite(el.duration) && el.duration > 0) {
+      scheduleFadeOut();
+    } else {
+      const onMeta = () => {
+        el.removeEventListener("loadedmetadata", onMeta);
+        scheduleFadeOut();
+      };
+      el.addEventListener("loadedmetadata", onMeta);
+    }
+  }
+
+  function playDecayingSonicBoom() {
+    playAudioEl("decaying", { volume: 0.62, fadeIn: 0.05, fadeOut: 1.6 });
+  }
+
+  function playStressTransition() {
+    playAudioEl("stress", { volume: 0.75, fadeIn: 0.08, fadeOut: 1.3 });
+  }
+
+  function playSlowSwing() {
+    playAudioEl("swing", { volume: 0.6, fadeIn: 0.12, fadeOut: 1.1 });
+  }
+
+  function unlock() {
+    ensure();
+    primeAudio();
+  }
+
+  ["pointerdown", "keydown", "touchstart", "mousedown"].forEach((ev) => {
+    window.addEventListener(ev, unlock, { capture: true, passive: true });
+  });
+
+  function noiseBuffer(dur) {
+    const c = ensure();
+    if (!c) return null;
+    const frames = Math.max(1, Math.floor(c.sampleRate * dur));
+    const buf = c.createBuffer(1, frames, c.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+    return buf;
+  }
+
+  function playWhoosh() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const dur = 2.0;
+
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer(dur);
+
+    const filter = c.createBiquadFilter();
+    filter.type = "bandpass";
+    filter.Q.value = 1.1;
+    filter.frequency.setValueAtTime(180, now);
+    filter.frequency.exponentialRampToValueAtTime(3800, now + 0.55);
+    filter.frequency.exponentialRampToValueAtTime(420, now + dur);
+
+    const gain = c.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.linearRampToValueAtTime(0.55, now + 0.35);
+    gain.gain.linearRampToValueAtTime(0.35, now + 1.0);
+    gain.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+
+    src.connect(filter).connect(gain).connect(master);
+    src.start(now);
+    src.stop(now + dur + 0.05);
+
+    const sub = c.createOscillator();
+    sub.type = "sine";
+    sub.frequency.setValueAtTime(70, now);
+    sub.frequency.exponentialRampToValueAtTime(40, now + dur);
+    const sg = c.createGain();
+    sg.gain.setValueAtTime(0.0001, now);
+    sg.gain.linearRampToValueAtTime(0.22, now + 0.4);
+    sg.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+    sub.connect(sg).connect(master);
+    sub.start(now);
+    sub.stop(now + dur + 0.05);
+  }
+
+  function playClick() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const osc = c.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(1600, now);
+    osc.frequency.exponentialRampToValueAtTime(520, now + 0.07);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.09, now + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+    osc.connect(g).connect(master);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
+
+  function playFrost() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const dur = 1.9;
+
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer(dur);
+    const hp = c.createBiquadFilter();
+    hp.type = "highpass";
+    hp.frequency.value = 3800;
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(0.0001, now);
+    ng.gain.linearRampToValueAtTime(0.22, now + 0.15);
+    ng.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+    src.connect(hp).connect(ng).connect(master);
+    src.start(now);
+    src.stop(now + dur);
+
+    [1760, 2637, 3520, 4186].forEach((f, i) => {
+      const start = now + i * 0.09;
+      const o = c.createOscillator();
+      o.type = "sine";
+      o.frequency.setValueAtTime(f, start);
+      const g = c.createGain();
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.linearRampToValueAtTime(0.14, start + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0005, start + 1.3);
+      o.connect(g).connect(master);
+      o.start(start);
+      o.stop(start + 1.35);
+    });
+  }
+
+  function playTef() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const dur = 3.4;
+
+    // Warm rain under a dense canopy — softened by a low shelf of leaves.
+    const rain = c.createBufferSource();
+    rain.buffer = noiseBuffer(dur);
+    const rainBp = c.createBiquadFilter();
+    rainBp.type = "bandpass";
+    rainBp.frequency.setValueAtTime(1600, now);
+    rainBp.frequency.linearRampToValueAtTime(1300, now + dur);
+    rainBp.Q.value = 0.7;
+    const rainLp = c.createBiquadFilter();
+    rainLp.type = "lowpass";
+    rainLp.frequency.value = 2400;
+    const rainG = c.createGain();
+    rainG.gain.setValueAtTime(0.0001, now);
+    rainG.gain.linearRampToValueAtTime(0.18, now + 0.55);
+    rainG.gain.linearRampToValueAtTime(0.14, now + dur - 0.9);
+    rainG.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+    rain.connect(rainBp).connect(rainLp).connect(rainG).connect(master);
+    rain.start(now);
+    rain.stop(now + dur);
+
+    // Scattered drops on wide leaves — bright, short clicks.
+    for (let i = 0; i < 18; i++) {
+      const t = now + 0.25 + Math.random() * (dur - 1.0);
+      const tail = Math.min(1, (dur - (t - now)) / 0.8, (t - now) / 0.4);
+      const ds = c.createBufferSource();
+      ds.buffer = noiseBuffer(0.09);
+      const df = c.createBiquadFilter();
+      df.type = "bandpass";
+      df.frequency.value = 2200 + Math.random() * 2400;
+      df.Q.value = 5.5;
+      const dg = c.createGain();
+      dg.gain.setValueAtTime(0.0001, t);
+      dg.gain.linearRampToValueAtTime(0.09 * tail, t + 0.004);
+      dg.gain.exponentialRampToValueAtTime(0.0005, t + 0.1);
+      ds.connect(df).connect(dg).connect(master);
+      ds.start(t);
+      ds.stop(t + 0.12);
+    }
+
+    // Lonely wooden flute — slow Dorian phrase on A (A · C · D · E · D · A).
+    const fluteNotes = [
+      { f: 440.0, at: 0.35, d: 0.55 },
+      { f: 523.25, at: 0.95, d: 0.45 },
+      { f: 587.33, at: 1.45, d: 0.5 },
+      { f: 659.25, at: 2.0, d: 0.6 },
+      { f: 587.33, at: 2.65, d: 0.4 },
+      { f: 440.0, at: 3.05, d: 0.3 },
+    ];
+    fluteNotes.forEach((n) => {
+      const t = now + n.at;
+
+      const osc = c.createOscillator();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(n.f, t);
+
+      // Gentle vibrato so the wooden flute feels breathed.
+      const lfo = c.createOscillator();
+      lfo.type = "sine";
+      lfo.frequency.value = 5.2;
+      const lfoGain = c.createGain();
+      lfoGain.gain.value = 2.2;
+      lfo.connect(lfoGain).connect(osc.frequency);
+
+      const og = c.createGain();
+      og.gain.setValueAtTime(0.0001, t);
+      og.gain.linearRampToValueAtTime(0.085, t + 0.08);
+      og.gain.setValueAtTime(0.085, t + n.d * 0.65);
+      og.gain.exponentialRampToValueAtTime(0.0005, t + n.d);
+      osc.connect(og).connect(master);
+      osc.start(t);
+      osc.stop(t + n.d + 0.05);
+      lfo.start(t);
+      lfo.stop(t + n.d + 0.05);
+
+      // Breathy air noise on the attack to sell the wooden pipe.
+      const breath = c.createBufferSource();
+      breath.buffer = noiseBuffer(Math.min(0.5, n.d + 0.1));
+      const bbp = c.createBiquadFilter();
+      bbp.type = "bandpass";
+      bbp.frequency.value = n.f * 2;
+      bbp.Q.value = 6;
+      const bg = c.createGain();
+      bg.gain.setValueAtTime(0.0001, t);
+      bg.gain.linearRampToValueAtTime(0.024, t + 0.05);
+      bg.gain.exponentialRampToValueAtTime(0.0005, t + n.d * 0.9);
+      breath.connect(bbp).connect(bg).connect(master);
+      breath.start(t);
+      breath.stop(t + n.d + 0.05);
+    });
+  }
+
+  function playWestStates() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const dur = 3.6;
+
+    // Hollow wind keening through broken battlements.
+    const wind = c.createBufferSource();
+    wind.buffer = noiseBuffer(dur);
+    const windLp = c.createBiquadFilter();
+    windLp.type = "lowpass";
+    windLp.frequency.setValueAtTime(240, now);
+    windLp.frequency.linearRampToValueAtTime(780, now + 1.4);
+    windLp.frequency.linearRampToValueAtTime(210, now + dur);
+    windLp.Q.value = 5;
+    const windG = c.createGain();
+    windG.gain.setValueAtTime(0.0001, now);
+    windG.gain.linearRampToValueAtTime(0.38, now + 0.8);
+    windG.gain.linearRampToValueAtTime(0.22, now + 2.3);
+    windG.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+    wind.connect(windLp).connect(windG).connect(master);
+    wind.start(now);
+    wind.stop(now + dur);
+
+    // Low rumble of an abandoned plain — sub-bass drone.
+    const rumble = c.createOscillator();
+    rumble.type = "sine";
+    rumble.frequency.setValueAtTime(46, now);
+    rumble.frequency.linearRampToValueAtTime(40, now + dur);
+    const rumbleG = c.createGain();
+    rumbleG.gain.setValueAtTime(0.0001, now);
+    rumbleG.gain.linearRampToValueAtTime(0.12, now + 0.9);
+    rumbleG.gain.linearRampToValueAtTime(0.07, now + dur - 0.6);
+    rumbleG.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+    rumble.connect(rumbleG).connect(master);
+    rumble.start(now);
+    rumble.stop(now + dur + 0.05);
+
+    // Mournful horn call — descending minor third G3 → E3, war long forgotten.
+    const hornNotes = [
+      { f: 196.0, at: 0.4, d: 0.95 },
+      { f: 164.81, at: 1.45, d: 1.35 },
+    ];
+    hornNotes.forEach((n) => {
+      const t = now + n.at;
+
+      const horn = c.createOscillator();
+      horn.type = "sawtooth";
+      horn.frequency.setValueAtTime(n.f, t);
+      const hornLp = c.createBiquadFilter();
+      hornLp.type = "lowpass";
+      hornLp.frequency.value = n.f * 4.5;
+      const hg = c.createGain();
+      hg.gain.setValueAtTime(0.0001, t);
+      hg.gain.linearRampToValueAtTime(0.08, t + 0.25);
+      hg.gain.setValueAtTime(0.08, t + n.d * 0.55);
+      hg.gain.exponentialRampToValueAtTime(0.0005, t + n.d);
+      horn.connect(hornLp).connect(hg).connect(master);
+      horn.start(t);
+      horn.stop(t + n.d + 0.05);
+
+      // Air through the bell of the horn.
+      const breath = c.createBufferSource();
+      breath.buffer = noiseBuffer(n.d + 0.1);
+      const bbp = c.createBiquadFilter();
+      bbp.type = "bandpass";
+      bbp.frequency.value = n.f * 3;
+      bbp.Q.value = 3.5;
+      const bg = c.createGain();
+      bg.gain.setValueAtTime(0.0001, t);
+      bg.gain.linearRampToValueAtTime(0.03, t + 0.15);
+      bg.gain.exponentialRampToValueAtTime(0.0005, t + n.d);
+      breath.connect(bbp).connect(bg).connect(master);
+      breath.start(t);
+      breath.stop(t + n.d + 0.05);
+    });
+
+    // Distant creaks — old timber and hinges groaning.
+    [1.05, 2.25, 2.95].forEach((at) => {
+      const t = now + at;
+      const cs = c.createBufferSource();
+      cs.buffer = noiseBuffer(0.4);
+      const cf = c.createBiquadFilter();
+      cf.type = "bandpass";
+      cf.frequency.setValueAtTime(360 + Math.random() * 180, t);
+      cf.frequency.linearRampToValueAtTime(220, t + 0.3);
+      cf.Q.value = 11;
+      const cg = c.createGain();
+      cg.gain.setValueAtTime(0.0001, t);
+      cg.gain.linearRampToValueAtTime(0.065, t + 0.09);
+      cg.gain.linearRampToValueAtTime(0.035, t + 0.22);
+      cg.gain.exponentialRampToValueAtTime(0.0005, t + 0.38);
+      cs.connect(cf).connect(cg).connect(master);
+      cs.start(t);
+      cs.stop(t + 0.42);
+    });
+  }
+
+  function playSevas() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const dur = 3.3;
+
+    // Deep bronze-bell toll: warm fundamental + bell-like partials.
+    const bellFundamental = 146.83; // D3 — solemn, medieval
+    const bellPartials = [1, 1.5, 2, 2.67, 4];
+    const bellGains = [0.22, 0.14, 0.1, 0.06, 0.035];
+    bellPartials.forEach((ratio, i) => {
+      const o = c.createOscillator();
+      o.type = "sine";
+      o.frequency.value = bellFundamental * ratio;
+      const og = c.createGain();
+      og.gain.setValueAtTime(0.0001, now);
+      og.gain.linearRampToValueAtTime(bellGains[i], now + 0.06);
+      og.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+      o.connect(og).connect(master);
+      o.start(now);
+      o.stop(now + dur + 0.05);
+    });
+
+    // Soft water lapping in a stone basin — warm, filtered, fades in and out.
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer(dur);
+    const lp = c.createBiquadFilter();
+    lp.type = "lowpass";
+    lp.frequency.setValueAtTime(480, now);
+    lp.frequency.linearRampToValueAtTime(820, now + dur * 0.55);
+    lp.frequency.linearRampToValueAtTime(320, now + dur);
+    lp.Q.value = 1.2;
+    const ng = c.createGain();
+    ng.gain.setValueAtTime(0.0001, now);
+    ng.gain.linearRampToValueAtTime(0.11, now + 0.6);
+    ng.gain.linearRampToValueAtTime(0.07, now + dur - 0.8);
+    ng.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+    src.connect(lp).connect(ng).connect(master);
+    src.start(now);
+    src.stop(now + dur);
+
+    // Solitary water drops resonating in the hall.
+    const dropTimes = [0.55, 1.2, 1.9, 2.55];
+    dropTimes.forEach((t) => {
+      const dt = now + t;
+      const o = c.createOscillator();
+      o.type = "sine";
+      o.frequency.setValueAtTime(380, dt);
+      o.frequency.exponentialRampToValueAtTime(165, dt + 0.3);
+      const og = c.createGain();
+      og.gain.setValueAtTime(0.0001, dt);
+      og.gain.linearRampToValueAtTime(0.12, dt + 0.012);
+      og.gain.exponentialRampToValueAtTime(0.0005, dt + 0.35);
+      o.connect(og).connect(master);
+      o.start(dt);
+      o.stop(dt + 0.4);
+    });
+  }
+
+  function playNales() {
+    const c = ensure();
+    if (!c) return;
+    const now = c.currentTime;
+    const dur = 3.5;
+
+    // Low open-fifth drone — D1 + A1 — a Saracen tanpura-style underlay.
+    [
+      { f: 73.42, gain: 0.11 },
+      { f: 110.0, gain: 0.07 },
+    ].forEach((d) => {
+      const osc = c.createOscillator();
+      osc.type = "sawtooth";
+      osc.frequency.value = d.f;
+      const lp = c.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.setValueAtTime(420, now);
+      lp.frequency.linearRampToValueAtTime(680, now + dur * 0.55);
+      lp.frequency.linearRampToValueAtTime(340, now + dur);
+      lp.Q.value = 4.5;
+      const og = c.createGain();
+      og.gain.setValueAtTime(0.0001, now);
+      og.gain.linearRampToValueAtTime(d.gain, now + 0.55);
+      og.gain.linearRampToValueAtTime(d.gain * 0.6, now + dur - 0.7);
+      og.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+      osc.connect(lp).connect(og).connect(master);
+      osc.start(now);
+      osc.stop(now + dur + 0.05);
+    });
+
+    // Dry sand drifting over dunes — continuous filtered whisper, no percussive grains.
+    const sand = c.createBufferSource();
+    sand.buffer = noiseBuffer(dur);
+    const sandBp = c.createBiquadFilter();
+    sandBp.type = "bandpass";
+    sandBp.frequency.setValueAtTime(1900, now);
+    sandBp.frequency.linearRampToValueAtTime(850, now + dur);
+    sandBp.Q.value = 0.9;
+    const sandG = c.createGain();
+    sandG.gain.setValueAtTime(0.0001, now);
+    sandG.gain.linearRampToValueAtTime(0.13, now + 0.6);
+    sandG.gain.linearRampToValueAtTime(0.09, now + dur - 0.9);
+    sandG.gain.exponentialRampToValueAtTime(0.0005, now + dur);
+    sand.connect(sandBp).connect(sandG).connect(master);
+    sand.start(now);
+    sand.stop(now + dur);
+
+    // Plucked oud-like phrase in Hijaz on D (D · Eb · F# · G · F# · D) — exotic, Middle-Eastern.
+    const pluckNotes = [
+      { f: 293.66, at: 0.45 },
+      { f: 311.13, at: 1.0 },
+      { f: 369.99, at: 1.55 },
+      { f: 392.0, at: 2.1 },
+      { f: 369.99, at: 2.65 },
+      { f: 293.66, at: 3.1 },
+    ];
+    pluckNotes.forEach((n) => {
+      const t = now + n.at;
+
+      const body = c.createOscillator();
+      body.type = "triangle";
+      body.frequency.setValueAtTime(n.f, t);
+      const bodyHp = c.createBiquadFilter();
+      bodyHp.type = "highpass";
+      bodyHp.frequency.value = 180;
+      const bodyG = c.createGain();
+      bodyG.gain.setValueAtTime(0.0001, t);
+      bodyG.gain.linearRampToValueAtTime(0.1, t + 0.008);
+      bodyG.gain.exponentialRampToValueAtTime(0.0005, t + 0.55);
+      body.connect(bodyHp).connect(bodyG).connect(master);
+      body.start(t);
+      body.stop(t + 0.6);
+
+      // Bright harmonic for the pluck's "bite".
+      const bite = c.createOscillator();
+      bite.type = "sine";
+      bite.frequency.setValueAtTime(n.f * 2, t);
+      const biteG = c.createGain();
+      biteG.gain.setValueAtTime(0.0001, t);
+      biteG.gain.linearRampToValueAtTime(0.045, t + 0.005);
+      biteG.gain.exponentialRampToValueAtTime(0.0005, t + 0.35);
+      bite.connect(biteG).connect(master);
+      bite.start(t);
+      bite.stop(t + 0.4);
+    });
+
+    // Distant frame drum — slow caravan pulse.
+    [0.3, 1.45, 2.55].forEach((at) => {
+      const t = now + at;
+      const drum = c.createOscillator();
+      drum.type = "sine";
+      drum.frequency.setValueAtTime(96, t);
+      drum.frequency.exponentialRampToValueAtTime(54, t + 0.22);
+      const dg = c.createGain();
+      dg.gain.setValueAtTime(0.0001, t);
+      dg.gain.linearRampToValueAtTime(0.15, t + 0.006);
+      dg.gain.exponentialRampToValueAtTime(0.0005, t + 0.3);
+      drum.connect(dg).connect(master);
+      drum.start(t);
+      drum.stop(t + 0.34);
+    });
+  }
+
+  const REGION_SOUNDS = {
+    fpedvesga: playFrost,
+    tef: playTef,
+    west_states: playWestStates,
+    sevas: playSevas,
+    nales: playNales,
+  };
+
+  function playRegion(regionId) {
+    const fn = REGION_SOUNDS[regionId];
+    if (fn) fn();
+  }
+
+  return {
+    unlock,
+    playWhoosh,
+    playClick,
+    playRegion,
+    playDecayingSonicBoom,
+    playStressTransition,
+    playSlowSwing,
+    preload: preloadAudio,
+  };
+})();
+
 /* ---------- English titles for overlay ---------- */
 
 const REGION_TITLES_EN = {
@@ -347,14 +994,20 @@ const REGION_TITLES_EN = {
 /* ---------- Intro sequence ---------- */
 
 const INTRO_STEPS = [
-  { id: "made-by",  enterAt: 400,   leaveAt: 2200 },
-  { id: "author",   enterAt: 3400,  leaveAt: 5800 },
-  { id: "book",     enterAt: 7000,  leaveAt: 10800 },
-  { id: "subtitle", enterAt: 12000, leaveAt: 14800 },
+  { id: "made-by",  enterAt: 400,   leaveAt: null  },
+  { id: "author",   enterAt: 400,   leaveAt: null  },
+  { id: "book",     enterAt: 8700,  leaveAt: 14100 },
+  { id: "subtitle", enterAt: 12600, leaveAt: 14100 },
 ];
 
-const INTRO_HINT_AT = 13500;
-const INTRO_AUTO_END = 16500;
+const INTRO_STEP_SOUNDS = {
+  "made-by": () => AudioFX.playDecayingSonicBoom(),
+  "book": () => AudioFX.playStressTransition(),
+  "subtitle": () => AudioFX.playSlowSwing(),
+};
+
+const INTRO_HINT_AT = 18000;
+const INTRO_AUTO_END = 14500;
 
 function runIntro() {
   const intro = document.getElementById("intro");
@@ -371,21 +1024,9 @@ function runIntro() {
 
   const timers = [];
   let finished = false;
+  let started = false;
 
-  INTRO_STEPS.forEach((cfg) => {
-    const el = steps.get(cfg.id);
-    if (!el) return;
-    timers.push(
-      window.setTimeout(() => el.classList.add("is-visible"), cfg.enterAt)
-    );
-    timers.push(
-      window.setTimeout(() => el.classList.add("is-leaving"), cfg.leaveAt)
-    );
-  });
-
-  timers.push(
-    window.setTimeout(() => enterHint?.classList.add("is-visible"), INTRO_HINT_AT)
-  );
+  enterHint?.classList.add("is-visible");
 
   function finishIntro() {
     if (finished) return;
@@ -399,27 +1040,61 @@ function runIntro() {
     window.setTimeout(() => intro.remove(), 1200);
   }
 
-  const autoTimer = window.setTimeout(finishIntro, INTRO_AUTO_END);
-  timers.push(autoTimer);
+  function startIntro() {
+    if (started) return;
+    started = true;
+    AudioFX.unlock();
+    enterHint?.classList.remove("is-visible");
+
+    INTRO_STEPS.forEach((cfg) => {
+      const el = steps.get(cfg.id);
+      if (!el) return;
+      timers.push(
+        window.setTimeout(() => {
+          el.classList.add("is-visible");
+          const soundFn = INTRO_STEP_SOUNDS[cfg.id];
+          if (soundFn) soundFn();
+        }, cfg.enterAt)
+      );
+      if (cfg.leaveAt != null) {
+        timers.push(
+          window.setTimeout(() => el.classList.add("is-leaving"), cfg.leaveAt)
+        );
+      }
+    });
+
+    const autoTimer = window.setTimeout(finishIntro, INTRO_AUTO_END);
+    timers.push(autoTimer);
+  }
 
   intro.addEventListener("click", (e) => {
     if (e.target === skipBtn) return;
+    if (!started) {
+      startIntro();
+      return;
+    }
     finishIntro();
   });
-  skipBtn?.addEventListener("click", finishIntro);
+  skipBtn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    finishIntro();
+  });
   window.addEventListener("keydown", function keyHandler(e) {
     if (finished) {
       window.removeEventListener("keydown", keyHandler);
       return;
     }
-    if (
+    const isTrigger =
       e.key === "Enter" ||
       e.key === " " ||
       e.key === "Escape" ||
-      e.key.length === 1
-    ) {
-      finishIntro();
+      e.key.length === 1;
+    if (!isTrigger) return;
+    if (!started) {
+      startIntro();
+      return;
     }
+    finishIntro();
   });
 }
 
@@ -498,6 +1173,7 @@ function setup() {
       const id = poly.getAttribute("data-id");
       selectRegion(poly);
       updateSidePanel(id);
+      AudioFX.playRegion(id);
       overlay.open(id);
     });
     poly.addEventListener("keydown", (e) => {
@@ -510,7 +1186,23 @@ function setup() {
   });
 
   initEditor(svg, regions);
+  initGlobalClickSound();
+  AudioFX.unlock();
+  AudioFX.preload();
   runIntro();
+}
+
+function initGlobalClickSound() {
+  window.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (document.body.classList.contains("editor-on")) return;
+      const t = e.target;
+      if (t && t.closest && t.closest(".region")) return;
+      AudioFX.playClick();
+    },
+    { capture: true }
+  );
 }
 
 document.addEventListener("DOMContentLoaded", setup);
