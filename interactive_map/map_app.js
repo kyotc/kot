@@ -10,7 +10,6 @@ const {
   findRegionById,
   getOverlayEyebrow,
   getRegionTitle,
-  randomBody,
 } = mapRegions;
 
 const safeAudioFX = AudioFX && typeof AudioFX === "object"
@@ -263,9 +262,6 @@ function initGlobalClickSound() {
 
 function setup() {
   const svg = document.getElementById("hit-layer");
-  const panelTitle = document.getElementById("panel-title");
-  const panelBody = document.getElementById("panel-body");
-  const panelHint = document.getElementById("panel-hint");
 
   if (!svg) {
     return;
@@ -280,25 +276,6 @@ function setup() {
     });
   }
 
-  function updateSidePanel(regionId) {
-    const region = findRegionById(regionId);
-    if (!region) {
-      return;
-    }
-
-    if (panelTitle) {
-      panelTitle.textContent = getRegionTitle(regionId);
-    }
-
-    if (panelBody) {
-      panelBody.textContent = randomBody();
-    }
-
-    if (panelHint) {
-      panelHint.textContent = "";
-    }
-  }
-
   regionElements.forEach((regionElement) => {
     regionElement.addEventListener("click", (event) => {
       if (isEditorEnabled()) {
@@ -308,7 +285,6 @@ function setup() {
 
       const regionId = regionElement.getAttribute("data-id");
       selectRegion(regionElement);
-      updateSidePanel(regionId);
       safeAudioFX.playRegion(regionId);
       overlay.open(regionId);
     });

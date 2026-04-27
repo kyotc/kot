@@ -517,7 +517,7 @@ body.is-intro {
     0 14px 44px rgba(0, 0, 0, 0.65),
     inset 0 0 0 1px rgba(201, 164, 97, 0.22);
   overflow: hidden;
-  background: #0b0806;
+  background: transparent;
 }
 
 .map-stage img {
